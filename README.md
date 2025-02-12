@@ -1,6 +1,6 @@
-![Alt text](pihole-linktree.png?raw=true "Screen Shot")
-
 # Pihole Linktree
+
+![Alt text](pihole-linktree.png?raw=true "Screen Shot")
 
 A simple web application that displays a list of domains and their corresponding IP addresses from a Pi-hole DNS server. Built with Go 1.23.4.
 
