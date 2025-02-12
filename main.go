@@ -164,36 +164,47 @@ func isIPAddress(s string) bool {
 }
 
 func fetchTitle(client *http.Client, domain string) string {
-	url := fmt.Sprintf("https://%s", domain)
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return domain
+	// Try common paths in order
+	paths := []string{
+		"",           // Root path
+		"/home",      // Common home path
+		"/admin",     // Admin path
+		"/dashboard", // Dashboard path
+		"/index",     // Index path
 	}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return domain
-	}
-	defer resp.Body.Close()
+	for _, path := range paths {
+		url := fmt.Sprintf("https://%s%s", domain, path)
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			continue
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		return domain
-	}
+		resp, err := client.Do(req)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
 
-	// Limit the amount of data read for title extraction
-	limitReader := io.LimitReader(resp.Body, 32*1024) // Only read up to 32KB
-	body, err := io.ReadAll(limitReader)
-	if err != nil {
-		return domain
-	}
+		if resp.StatusCode != http.StatusOK {
+			continue
+		}
 
-	// Simple title extraction using string search
-	bodyStr := string(body)
-	titleStart := strings.Index(bodyStr, "<title>")
-	titleEnd := strings.Index(bodyStr, "</title>")
-	if titleStart >= 0 && titleEnd > titleStart {
-		title := bodyStr[titleStart+7 : titleEnd]
-		return strings.TrimSpace(title)
+		// Limit the amount of data read for title extraction
+		limitReader := io.LimitReader(resp.Body, 32*1024) // Only read up to 32KB
+		body, err := io.ReadAll(limitReader)
+		if err != nil {
+			continue
+		}
+
+		// Simple title extraction using string search
+		bodyStr := string(body)
+		titleStart := strings.Index(bodyStr, "<title>")
+		titleEnd := strings.Index(bodyStr, "</title>")
+		if titleStart >= 0 && titleEnd > titleStart {
+			title := bodyStr[titleStart+7 : titleEnd]
+			return strings.TrimSpace(title)
+		}
 	}
 
 	return domain
@@ -220,7 +231,7 @@ func (cfg *Config) updateCache() error {
 
 func (cfg *Config) startCacheUpdater(ctx context.Context) {
 	log.Printf("Starting cache updater with 15 second refresh interval")
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(60 * time.Second)
 
 	go func() {
 		// Initial cache load
