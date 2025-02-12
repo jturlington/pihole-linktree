@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -34,10 +35,11 @@ type PiholeResponse struct {
 }
 
 type Config struct {
-	PiholeHost string
-	AuthToken  string
-	BaseDomain string
-	cache      atomic.Pointer[DomainInfo] // Thread-safe cache
+	PiholeHost           string
+	AuthToken            string
+	BaseDomain           string
+	CacheRefreshInterval int
+	cache                atomic.Pointer[DomainInfo] // Thread-safe cache
 }
 
 type HealthStatus struct {
@@ -62,10 +64,16 @@ func loadConfig() (*Config, error) {
 		return nil, fmt.Errorf("BASE_DOMAIN environment variable is required")
 	}
 
+	refreshInterval, err := strconv.Atoi(os.Getenv("CACHE_REFRESH_INTERVAL"))
+	if err != nil {
+		return nil, fmt.Errorf("CACHE_REFRESH_INTERVAL environment variable must be an integer")
+	}
+
 	return &Config{
-		PiholeHost: host,
-		AuthToken:  token,
-		BaseDomain: domain,
+		PiholeHost:           host,
+		AuthToken:            token,
+		BaseDomain:           domain,
+		CacheRefreshInterval: refreshInterval,
 	}, nil
 }
 
@@ -230,8 +238,8 @@ func (cfg *Config) updateCache() error {
 }
 
 func (cfg *Config) startCacheUpdater(ctx context.Context) {
-	log.Printf("Starting cache updater with 15 second refresh interval")
-	ticker := time.NewTicker(60 * time.Second)
+	log.Printf("Starting cache updater with %d second refresh interval", cfg.CacheRefreshInterval)
+	ticker := time.NewTicker(time.Duration(cfg.CacheRefreshInterval) * time.Second)
 
 	go func() {
 		// Initial cache load

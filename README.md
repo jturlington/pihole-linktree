@@ -27,6 +27,7 @@ The service is configured using environment variables in the `.env` file:
 - `PIHOLE_TOKEN`: Pi-hole API token (64-character string)
 - `BASE_DOMAIN`: Base domain for filtering records
 - `PIHOLE_DNS`: IP address of Pi-hole DNS server for container DNS resolution
+- `CACHE_REFRESH_INTERVAL`: Refresh interval in seconds
 
 The service runs on port 8080 and requires a fixed IP address.
 
@@ -46,6 +47,7 @@ The service runs on port 8080 and requires a fixed IP address.
    PIHOLE_TOKEN= # Pi-hole API token (found in Settings > API  > Show API token)
    BASE_DOMAIN= # Base domain for filtering records
    PIHOLE_DNS= # Pi-hole DNS server IP
+   CACHE_REFRESH_INTERVAL= # Refresh interval in seconds
    ```
 
 3. Build and start the container:
