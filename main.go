@@ -70,6 +70,16 @@ func loadConfig() (*Config, error) {
 }
 
 func fetchPiholeRecords(cfg *Config) (*DomainInfo, error) {
+	// Create a single reusable HTTP client for title fetching
+	titleClient := &http.Client{
+		Timeout: 3 * time.Second,
+		Transport: &http.Transport{
+			MaxIdleConns:       100,
+			IdleConnTimeout:    90 * time.Second,
+			DisableCompression: true,
+		},
+	}
+
 	// Create custom transport with longer timeouts
 	transport := &http.Transport{
 		DialContext: (&net.Dialer{
@@ -105,7 +115,9 @@ func fetchPiholeRecords(cfg *Config) (*DomainInfo, error) {
 
 	log.Printf("Received response from Pi-hole in %v", time.Since(start))
 
+	// Move response body reading to a separate function to ensure proper cleanup
 	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close() // Explicitly close the body
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
@@ -127,34 +139,12 @@ func fetchPiholeRecords(cfg *Config) (*DomainInfo, error) {
 			continue
 		}
 
-		// Try to fetch title for the domain
-		url := fmt.Sprintf("https://%s", record[0])
-		req, err := http.NewRequest("GET", url, nil)
-		if err != nil {
-			log.Printf("Failed to create request for %s: %v", url, err)
-		}
-
-		// Use a shorter timeout for title fetching
-		titleClient := &http.Client{Timeout: 3 * time.Second}
-		resp, err := titleClient.Do(req)
 		title := record[0]
-
-		if err == nil {
-			defer resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				body, err := io.ReadAll(resp.Body)
-				if err == nil {
-					// Simple title extraction using string search
-					bodyStr := string(body)
-					titleStart := strings.Index(bodyStr, "<title>")
-					titleEnd := strings.Index(bodyStr, "</title>")
-					if titleStart >= 0 && titleEnd > titleStart {
-						title = bodyStr[titleStart+7 : titleEnd]
-						title = strings.TrimSpace(title)
-					}
-				}
-			}
+		// Only fetch title if the domain is not an IP address
+		if !isIPAddress(record[0]) {
+			title = fetchTitle(titleClient, record[0])
 		}
+
 		subRecord := SubRecord{
 			Name:     record[0],
 			Title:    title,
@@ -168,15 +158,62 @@ func fetchPiholeRecords(cfg *Config) (*DomainInfo, error) {
 	return info, nil
 }
 
-func (cfg *Config) updateCache() error {
-	log.Printf("Fetching DNS records from Pi-hole at %s", cfg.PiholeHost)
+// Add these new helper functions
+func isIPAddress(s string) bool {
+	return net.ParseIP(s) != nil
+}
 
+func fetchTitle(client *http.Client, domain string) string {
+	url := fmt.Sprintf("https://%s", domain)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return domain
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return domain
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return domain
+	}
+
+	// Limit the amount of data read for title extraction
+	limitReader := io.LimitReader(resp.Body, 32*1024) // Only read up to 32KB
+	body, err := io.ReadAll(limitReader)
+	if err != nil {
+		return domain
+	}
+
+	// Simple title extraction using string search
+	bodyStr := string(body)
+	titleStart := strings.Index(bodyStr, "<title>")
+	titleEnd := strings.Index(bodyStr, "</title>")
+	if titleStart >= 0 && titleEnd > titleStart {
+		title := bodyStr[titleStart+7 : titleEnd]
+		return strings.TrimSpace(title)
+	}
+
+	return domain
+}
+
+// Update the cache update function to properly handle old cache entries
+func (cfg *Config) updateCache() error {
 	info, err := fetchPiholeRecords(cfg)
 	if err != nil {
 		return fmt.Errorf("cache update failed: %w", err)
 	}
 
-	cfg.cache.Store(info)
+	// Get the old cache before storing the new one
+	oldCache := cfg.cache.Swap(info)
+
+	// Clear any references in the old cache (optional, but can help GC)
+	if oldCache != nil {
+		oldCache.Subdomains = nil
+	}
+
 	log.Printf("Cache updated successfully with %d subdomains", len(info.Subdomains))
 	return nil
 }
