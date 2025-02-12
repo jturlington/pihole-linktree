@@ -1,7 +1,7 @@
 FROM golang:1.23.4-alpine AS builder
 
 WORKDIR /app
-COPY . .
+COPY ./src/ .
 RUN go build -o pihole-linktree
 
 FROM alpine:latest
