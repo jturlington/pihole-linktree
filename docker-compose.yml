@@ -1,7 +1,7 @@
 services:
-  domain-links:
+  pihole-linktree:
     build: .
-    container_name: domain-links
+    container_name: pihole-linktree
     env_file:
       - .env
     ports:
