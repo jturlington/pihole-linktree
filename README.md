@@ -64,3 +64,7 @@ The service runs on port 8080 and requires a fixed IP address.
    # View logs
    docker compose logs -f
    ```
+
+# Why I wrote it?
+
+Ever feel like you're playing a game of hide-and-seek with your own applications? Yeah, me too. It was driving me nuts! I'd spin up some cool new service, give it some cutesy, totally-forgettable name like "FluffyBunnyServer" – or maybe something even more ridiculous, like "CosmicBurrito.jont.us" – because, why not, right?  And then, a week later, I'd need to tweak something. Where was it? What IP did I assign it? Was it even still running? I was constantly digging through old terminal windows, sifting through config files, trying to piece together the digital breadcrumbs I'd left for myself. It was a nightmare! I wasted so much time just finding my stuff that I barely had any left to actually work on it. So, I built this. This little app right here? It's my sanity saver. It's the answer to my "where did I put that?!" prayers. No more cryptic names, no more IP address scavenger hunts, even with domains like jont.us thrown in the mix. Just a simple, clean interface that shows me everything I've got running, where it is, and what it's doing. Consider it my digital decluttering project. And honestly? It's been a game changer.
